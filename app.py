@@ -4,6 +4,7 @@ import csv
 import copy
 import argparse
 import itertools
+import socket
 from collections import Counter
 from collections import deque
 
@@ -61,7 +62,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=1,
+        max_num_hands=2,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -97,6 +98,19 @@ def main():
 
     #  ########################################################################
     mode = 0
+
+    RPI_IP = '127.0.0.1'  # Replace this with your Raspberry Pi's IP address
+    RPI_PORT = 5000  # Choose an appropriate port number
+
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    try:
+        client_socket.connect((RPI_IP, RPI_PORT))
+        print("Connected to Raspberry Pi!")
+    except socket.error as e:
+        print(f"Failed to connect to Raspberry Pi: {e}")
+        exit()
+
 
     while True:
         fps = cvFpsCalc.get()
@@ -141,7 +155,11 @@ def main():
 
                 # ハンドサイン分類
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-                if hand_sign_id == 2:  # 指差しサイン
+
+                #  Sending the hand sign index as soon it is classified
+                client_socket.sendall(str(hand_sign_id).encode())
+
+                if hand_sign_id == "diabling pointer":  # 指差しサイン
                     point_history.append(landmark_list[8])  # 人差指座標
                 else:
                     point_history.append([0, 0])
@@ -179,6 +197,7 @@ def main():
 
     cap.release()
     cv.destroyAllWindows()
+    client_socket.close()
 
 
 def select_mode(key, mode):
@@ -503,12 +522,12 @@ def draw_info_text(image, brect, handedness, hand_sign_text,
     cv.putText(image, info_text, (brect[0] + 5, brect[1] - 4),
                cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
 
-    if finger_gesture_text != "":
-        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-                   cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
-        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-                   cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
-                   cv.LINE_AA)
+    # if finger_gesture_text != "":
+    #     cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
+    #                cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
+    #     cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
+    #                cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
+    #                cv.LINE_AA)
 
     return image
 
